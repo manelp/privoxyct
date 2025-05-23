@@ -27,36 +27,33 @@ def read_categories(file_path):
   with open(file_path, "r") as f:
     return [line.strip() for line in f if line.strip()]
 
-def collect_domains(categories, blacklist_dir):
-  domains = set()
-  for cat in categories:
-    cat_file = os.path.join(blacklist_dir, "blacklists", cat, "domains")
-    if os.path.isfile(cat_file):
-      with open(cat_file, "r") as f:
-        for line in f:
-          line = line.strip()
-          if line and not line.startswith("#"):
-            domains.add(line)
-  return domains
-
-def update_user_actions(domains, user_actions_path):
+def update_user_actions_streaming(categories, blacklist_dir, user_actions_path):
     start_marker = "# BEGIN PRIVOCYCT BLOCK"
     end_marker = "# END PRIVOCYCT BLOCK"
-    block = [start_marker, "{ +block }"]
-    block += [f".{domain}" for domain in sorted(domains)]
-    block.append(end_marker)
-    block_content = "\n".join(block) + "\n"
 
     temp_fd, temp_path = tempfile.mkstemp()
     block_written = False
     try:
+        # Write to temp file
         with open(user_actions_path, "r") as src, os.fdopen(temp_fd, "w") as dst:
             in_block = False
             for line in src:
                 if line.strip() == start_marker:
                     in_block = True
                     if not block_written:
-                        dst.write(block_content)
+                        # Write the new block
+                        dst.write(start_marker + "\n")
+                        dst.write("{ +block }\n")
+                        # Stream domains directly
+                        for cat in categories:
+                            cat_file = os.path.join(blacklist_dir, "blacklists", cat, "domains")
+                            if os.path.isfile(cat_file):
+                                with open(cat_file, "r") as f:
+                                    for domain_line in f:
+                                        domain_line = domain_line.strip()
+                                        if domain_line and not domain_line.startswith("#"):
+                                            dst.write(f".{domain_line}\n")
+                        dst.write(end_marker + "\n")
                         block_written = True
                     continue
                 if line.strip() == end_marker:
@@ -66,11 +63,31 @@ def update_user_actions(domains, user_actions_path):
                     dst.write(line)
             if not block_written:
                 # No block found, append at end
-                dst.write("\n" + block_content)
+                dst.write("\n" + start_marker + "\n")
+                dst.write("{ +block }\n")
+                for cat in categories:
+                    cat_file = os.path.join(blacklist_dir, "blacklists", cat, "domains")
+                    if os.path.isfile(cat_file):
+                        with open(cat_file, "r") as f:
+                            for domain_line in f:
+                                domain_line = domain_line.strip()
+                                if domain_line and not domain_line.startswith("#"):
+                                    dst.write(f".{domain_line}\n")
+                dst.write(end_marker + "\n")
         shutil.move(temp_path, user_actions_path)
     except FileNotFoundError:
         with open(user_actions_path, "w") as f:
-            f.write(block_content)
+            f.write(start_marker + "\n")
+            f.write("{ +block }\n")
+            for cat in categories:
+                cat_file = os.path.join(blacklist_dir, "blacklists", cat, "domains")
+                if os.path.isfile(cat_file):
+                    with open(cat_file, "r") as dfile:
+                        for domain_line in dfile:
+                            domain_line = domain_line.strip()
+                            if domain_line and not domain_line.startswith("#"):
+                                f.write(f".{domain_line}\n")
+            f.write(end_marker + "\n")
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -84,9 +101,8 @@ def main():
   extract_blacklist(tar_path, TMP_DIR)
   categories = read_categories(CATEGORIES_FILE)
   print(f"Using categories: {categories}")
-  domains = collect_domains(categories, TMP_DIR)
-  print(f"Collected {len(domains)} domains.")
-  update_user_actions(domains, USER_ACTIONS_FILE)
+  print("Updating user actions...")
+  update_user_actions_streaming(categories, TMP_DIR, USER_ACTIONS_FILE)
   print(f"Updated {USER_ACTIONS_FILE} with blocked domains.")
 
 if __name__ == "__main__":

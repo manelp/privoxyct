@@ -1,12 +1,14 @@
 import os
 import requests
 import tarfile
+import tempfile
+import shutil
 
 # Configuration
 BLACKLIST_URL = "https://dsi.ut-capitole.fr/blacklists/download/blacklists.tar.gz"
 CATEGORIES_FILE = "categories.txt"  # File containing categories, one per line
-USER_ACTIONS_FILE = "/etc/privoxy/user.action"  # Adjust path as needed
-#USER_ACTIONS_FILE = "./privoxy.test.user.action"  # Adjust path as needed
+#USER_ACTIONS_FILE = "/etc/privoxy/user.action"  # Adjust path as needed
+USER_ACTIONS_FILE = "./privoxy.test.user.action"  # Adjust path as needed
 TMP_DIR = "/tmp/privoxy_blacklist"
 
 
@@ -38,42 +40,40 @@ def collect_domains(categories, blacklist_dir):
   return domains
 
 def update_user_actions(domains, user_actions_path):
-  start_marker = "# BEGIN PRIVOCYCT BLOCK"
-  end_marker = "# END PRIVOCYCT BLOCK"
-  block = [start_marker, "{ +block }"]
-  block += [f".{domain}" for domain in sorted(domains)]
-  block.append(end_marker)
-  block_content = "\n".join(block) + "\n"
+    start_marker = "# BEGIN PRIVOCYCT BLOCK"
+    end_marker = "# END PRIVOCYCT BLOCK"
+    block = [start_marker, "{ +block }"]
+    block += [f".{domain}" for domain in sorted(domains)]
+    block.append(end_marker)
+    block_content = "\n".join(block) + "\n"
 
-  if os.path.exists(user_actions_path):
-    with open(user_actions_path, "r") as f:
-      lines = f.readlines()
-
-    in_block = False
-    new_lines = []
+    temp_fd, temp_path = tempfile.mkstemp()
     block_written = False
-    for line in lines:
-      if line.strip() == start_marker:
-        in_block = True
-        if not block_written:
-          new_lines.append(block_content)
-          block_written = True
-        continue
-      if line.strip() == end_marker:
-        in_block = False
-        continue
-      if not in_block:
-        new_lines.append(line)
-    if not block_written:
-      # No block found, append at end
-      if not new_lines or not new_lines[-1].endswith('\n'):
-        new_lines.append('\n')
-      new_lines.append(block_content)
-    with open(user_actions_path, "w") as f:
-      f.writelines(new_lines)
-  else:
-    with open(user_actions_path, "w") as f:
-      f.write(block_content)
+    try:
+        with open(user_actions_path, "r") as src, os.fdopen(temp_fd, "w") as dst:
+            in_block = False
+            for line in src:
+                if line.strip() == start_marker:
+                    in_block = True
+                    if not block_written:
+                        dst.write(block_content)
+                        block_written = True
+                    continue
+                if line.strip() == end_marker:
+                    in_block = False
+                    continue
+                if not in_block:
+                    dst.write(line)
+            if not block_written:
+                # No block found, append at end
+                dst.write("\n" + block_content)
+        shutil.move(temp_path, user_actions_path)
+    except FileNotFoundError:
+        with open(user_actions_path, "w") as f:
+            f.write(block_content)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 def main():
   os.makedirs(TMP_DIR, exist_ok=True)

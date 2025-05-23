@@ -7,8 +7,8 @@ import shutil
 # Configuration
 BLACKLIST_URL = "https://dsi.ut-capitole.fr/blacklists/download/blacklists.tar.gz"
 CATEGORIES_FILE = "categories.txt"  # File containing categories, one per line
-#USER_ACTIONS_FILE = "/etc/privoxy/user.action"  # Adjust path as needed
-USER_ACTIONS_FILE = "./privoxy.test.user.action"  # Adjust path as needed
+USER_ACTIONS_FILE = "/etc/privoxy/user.action"  # Adjust path as needed
+#USER_ACTIONS_FILE = "./privoxy.test.user.action"  # Adjust path as needed
 TMP_DIR = "/tmp/privoxy_blacklist"
 
 

@@ -91,6 +91,15 @@ def update_user_actions_streaming(categories, blacklist_dir, user_actions_path):
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
+            
+def chownPrivxoyUserActions(user_actions_path):
+    try:
+        import pwd
+        privoxy_user = pwd.getpwnam("privoxy")
+        group = pwd.getgrnam("root")
+        os.chown(user_actions_path, privoxy_user.pw_uid, group.gr_gid)
+    except (KeyError, ImportError):
+        print("Warning: Could not change ownership to 'privoxy'. Ensure the script is run with appropriate permissions.")
 
 def main():
   os.makedirs(TMP_DIR, exist_ok=True)
@@ -103,6 +112,7 @@ def main():
   print(f"Using categories: {categories}")
   print("Updating user actions...")
   update_user_actions_streaming(categories, TMP_DIR, USER_ACTIONS_FILE)
+  chownPrivxoyUserActions(USER_ACTIONS_FILE)
   print(f"Updated {USER_ACTIONS_FILE} with blocked domains.")
 
 if __name__ == "__main__":

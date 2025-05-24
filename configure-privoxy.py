@@ -95,8 +95,10 @@ def update_user_actions_streaming(categories, blacklist_dir, user_actions_path):
 def chownPrivxoyUserActions(user_actions_path):
     try:
         import pwd
+        import grp
+        # Change ownership to 'privoxy' user and 'root' group
         privoxy_user = pwd.getpwnam("privoxy")
-        group = pwd.getgrnam("root")
+        group = grp.getgrnam("root")
         os.chown(user_actions_path, privoxy_user.pw_uid, group.gr_gid)
     except (KeyError, ImportError):
         print("Warning: Could not change ownership to 'privoxy'. Ensure the script is run with appropriate permissions.")
